@@ -211,7 +211,18 @@ def play_sound_effect(sound_bytes: bytes, mime_type: str, key: str) -> None:
     代わりにkeyを指定できるst.containerで包んでいる。
     問題ごとにcontainerのkeyを変えることで、ブラウザに
     「前回とは別の新しい部品」だと認識させ、2問目以降も
-    確実に音が自動再生されるようにしている。"""
+    確実に音が自動再生されるようにしている。
+
+    st.audioは本来、再生バー（再生ボタンや再生時間など）が
+    画面に表示される部品なので、そのままだと正誤の表示のすぐ下に
+    音楽プレイヤーのようなバーが見えてしまう。効果音として鳴らしたい
+    だけで見た目は不要なので、containerのkeyから決まる専用のCSS
+    クラス名（st-key-＜key＞）を使って、そのバー自体をCSSで
+    非表示にしている（非表示にしても自動再生や音自体は止まらない）。"""
+    st.markdown(
+        f"<style>.st-key-{key} {{ display: none; }}</style>",
+        unsafe_allow_html=True,
+    )
     with st.container(key=key):
         st.audio(sound_bytes, format=mime_type, autoplay=True)
 
