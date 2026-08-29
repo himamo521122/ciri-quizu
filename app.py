@@ -179,10 +179,14 @@ def play_sound_effect(sound_bytes: bytes, mime_type: str, key: str) -> None:
     ボタンの表示・非表示の切り替えとタイミングが重なると、
     ごくまれに前の選択肢が消えずに一瞬残って点滅する不具合があったため、
     Streamlit本体がきちんと管理してくれるst.audioに変更した。
-    key を問題ごとに変えることで、2問目以降も確実に新しい音として
-    自動再生される（keyが同じだと、ブラウザが「前と同じ部品」と
-    判断してしまい、2回目以降は音が鳴らないことがあるため）。"""
-    st.audio(sound_bytes, format=mime_type, autoplay=True, key=key)
+
+    st.audio自体にはkey引数が無い（渡すとエラーになる）ため、
+    代わりにkeyを指定できるst.containerで包んでいる。
+    問題ごとにcontainerのkeyを変えることで、ブラウザに
+    「前回とは別の新しい部品」だと認識させ、2問目以降も
+    確実に音が自動再生されるようにしている。"""
+    with st.container(key=key):
+        st.audio(sound_bytes, format=mime_type, autoplay=True)
 
 
 # ============================================================
