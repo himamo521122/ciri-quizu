@@ -173,13 +173,16 @@ def get_incorrect_sound():
     return custom if custom else (generate_buzzer_sound(), "audio/wav")
 
 
-def play_sound_effect(sound_bytes: bytes, mime_type: str) -> None:
+def play_sound_effect(sound_bytes: bytes, mime_type: str, key: str) -> None:
     """Streamlit標準のst.audioで自動再生する。
     以前は目に見えないHTML部品(components.html)で鳴らしていたが、
     ボタンの表示・非表示の切り替えとタイミングが重なると、
     ごくまれに前の選択肢が消えずに一瞬残って点滅する不具合があったため、
-    Streamlit本体がきちんと管理してくれるst.audioに変更した。"""
-    st.audio(sound_bytes, format=mime_type, autoplay=True)
+    Streamlit本体がきちんと管理してくれるst.audioに変更した。
+    key を問題ごとに変えることで、2問目以降も確実に新しい音として
+    自動再生される（keyが同じだと、ブラウザが「前と同じ部品」と
+    判断してしまい、2回目以降は音が鳴らないことがあるため）。"""
+    st.audio(sound_bytes, format=mime_type, autoplay=True, key=key)
 
 
 # ============================================================
@@ -630,7 +633,7 @@ def render_quiz():
         # 効果音は答えた直後の1回だけ鳴らす（タイマー更新のたびに鳴らさない）
         if not st.session_state.sound_played:
             sound_bytes, mime_type = get_correct_sound() if last["is_correct"] else get_incorrect_sound()
-            play_sound_effect(sound_bytes, mime_type)
+            play_sound_effect(sound_bytes, mime_type, key=f"sound_effect_{current}")
             st.session_state.sound_played = True
 
         if last["is_correct"]:
