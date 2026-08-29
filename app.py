@@ -65,6 +65,33 @@ def format_mmss(seconds: float) -> str:
     return f"{minutes:02d}:{secs:02d}"
 
 
+@st.fragment(run_every=1)
+def render_timer():
+    """残り時間の表示だけを1秒ごとに更新する部品（フラグメント）。
+
+    以前は「1秒待ってからアプリ全体を再描画する（st.rerun）」という
+    やり方でタイマーを動かしていたが、これだと選択肢のボタンなど
+    画面の他の部分も1秒ごとに丸ごと作り直されることになり、
+    ちょうどボタンをクリックした瞬間とこの自動更新が重なると、
+    ブラウザ側の画面の更新（差分反映）がまれに失敗し、消えたはずの
+    選択肢の文字が一瞬残って点滅する不具合が起きていた。
+
+    st.fragmentを使うと、この時計の部分だけを1秒ごとに更新でき、
+    選択肢のボタンなど他の部分はユーザーが実際にクリックするまで
+    一切作り直されなくなるため、上記の不具合が起きなくなる。"""
+    remaining = get_remaining_seconds()
+    if remaining <= 0:
+        st.session_state.stage = "result"
+        st.rerun()  # フラグメントの外（アプリ全体）を再描画する
+        return
+    timer_color = "red" if remaining <= 30 else "inherit"
+    st.markdown(
+        f"<div style='text-align:right; font-size:1.3em; font-weight:bold; "
+        f"color:{timer_color};'>⏱ 残り時間 {format_mmss(remaining)}</div>",
+        unsafe_allow_html=True,
+    )
+
+
 # ============================================================
 # 効果音（正解時 / 不正解時）
 # ------------------------------------------------------------
@@ -600,13 +627,8 @@ def render_quiz():
         st.rerun()
         return
 
-    # ---- 残り時間の表示（毎秒更新） ----
-    timer_color = "red" if remaining <= 30 else "inherit"
-    st.markdown(
-        f"<div style='text-align:right; font-size:1.3em; font-weight:bold; "
-        f"color:{timer_color};'>⏱ 残り時間 {format_mmss(remaining)}</div>",
-        unsafe_allow_html=True,
-    )
+    # ---- 残り時間の表示（1秒ごとにこの部分だけ更新される） ----
+    render_timer()
 
     q = quiz[current]
 
@@ -654,11 +676,6 @@ def render_quiz():
                 st.session_state.stage = "result"
             st.rerun()
             return
-
-    # ここまで来た（＝ボタンが押されなかった）場合は、1秒待ってから
-    # 画面を再描画し、残り時間の表示をリアルタイムに近い形で更新し続ける。
-    time.sleep(1)
-    st.rerun()
 
 
 # ============================================================
