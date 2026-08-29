@@ -24,7 +24,6 @@ Streamlit で動作します。
     },
 """
 
-import base64
 import difflib
 import io
 import math
@@ -37,7 +36,6 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import pandas as pd
 import streamlit as st
-import streamlit.components.v1 as components
 
 # グラフの日本語（「正解」「不正解」）が文字化けしないよう、
 # パソコンに入っている日本語フォントを順番に探して使う設定。
@@ -176,17 +174,12 @@ def get_incorrect_sound():
 
 
 def play_sound_effect(sound_bytes: bytes, mime_type: str) -> None:
-    """再生ボタンなどを画面に出さず、こっそり自動再生する。"""
-    b64 = base64.b64encode(sound_bytes).decode()
-    components.html(
-        f"""
-        <audio autoplay="true" style="display:none">
-            <source src="data:{mime_type};base64,{b64}" type="{mime_type}">
-        </audio>
-        """,
-        height=0,
-        width=0,
-    )
+    """Streamlit標準のst.audioで自動再生する。
+    以前は目に見えないHTML部品(components.html)で鳴らしていたが、
+    ボタンの表示・非表示の切り替えとタイミングが重なると、
+    ごくまれに前の選択肢が消えずに一瞬残って点滅する不具合があったため、
+    Streamlit本体がきちんと管理してくれるst.audioに変更した。"""
+    st.audio(sound_bytes, format=mime_type, autoplay=True)
 
 
 # ============================================================
