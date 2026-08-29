@@ -31,6 +31,7 @@ import random
 import struct
 import time
 import wave
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -66,9 +67,18 @@ def format_mmss(seconds: float) -> str:
 
 
 # ============================================================
-# 効果音（ding.wav / buzzer.wav）を音声ファイルを使わずPythonで自動生成
-# 追加ライブラリのインストールは不要（標準ライブラリのみで作成）
+# 効果音（正解時 / 不正解時）
+# ------------------------------------------------------------
+# フリー素材などの音声ファイルに差し替えたい場合は、
+# 下の CORRECT_SOUND_FILE / INCORRECT_SOUND_FILE と同じファイル名で
+# 音声ファイル（mp4 / mp3 / wav / m4a / ogg）をこのapp.pyと同じ場所
+# （リポジトリの直下）にアップロードするだけでOKです。
+# コードの変更は不要です。ファイルが見つからない間は、代わりに
+# Pythonで自動生成した電子音が鳴ります（追加ライブラリ不要）。
 # ============================================================
+CORRECT_SOUND_FILE = "correct.mp3"
+INCORRECT_SOUND_FILE = "incorrect.mp3"
+
 SAMPLE_RATE = 44100
 
 
@@ -134,13 +144,43 @@ def generate_buzzer_sound() -> bytes:
     return _pcm_to_wav_bytes(_synthesize(segments))
 
 
-def play_sound_effect(wav_bytes: bytes) -> None:
+_SOUND_MIME_TYPES = {
+    ".mp4": "audio/mp4",
+    ".m4a": "audio/mp4",
+    ".mp3": "audio/mpeg",
+    ".wav": "audio/wav",
+    ".ogg": "audio/ogg",
+}
+
+
+@st.cache_data
+def load_custom_sound(filename: str):
+    """filenameのファイルがリポジトリ内にあれば (音声データ, mimeタイプ) を返す。
+    無ければ None を返す（＝自動生成音を使う）。"""
+    path = Path(filename)
+    if not path.exists():
+        return None
+    mime_type = _SOUND_MIME_TYPES.get(path.suffix.lower(), "audio/mpeg")
+    return path.read_bytes(), mime_type
+
+
+def get_correct_sound():
+    custom = load_custom_sound(CORRECT_SOUND_FILE)
+    return custom if custom else (generate_ding_sound(), "audio/wav")
+
+
+def get_incorrect_sound():
+    custom = load_custom_sound(INCORRECT_SOUND_FILE)
+    return custom if custom else (generate_buzzer_sound(), "audio/wav")
+
+
+def play_sound_effect(sound_bytes: bytes, mime_type: str) -> None:
     """再生ボタンなどを画面に出さず、こっそり自動再生する。"""
-    b64 = base64.b64encode(wav_bytes).decode()
+    b64 = base64.b64encode(sound_bytes).decode()
     components.html(
         f"""
         <audio autoplay="true" style="display:none">
-            <source src="data:audio/wav;base64,{b64}" type="audio/wav">
+            <source src="data:{mime_type};base64,{b64}" type="{mime_type}">
         </audio>
         """,
         height=0,
@@ -407,7 +447,8 @@ def render_quiz():
 
         # 効果音は答えた直後の1回だけ鳴らす（タイマー更新のたびに鳴らさない）
         if not st.session_state.sound_played:
-            play_sound_effect(generate_ding_sound() if last["is_correct"] else generate_buzzer_sound())
+            sound_bytes, mime_type = get_correct_sound() if last["is_correct"] else get_incorrect_sound()
+            play_sound_effect(sound_bytes, mime_type)
             st.session_state.sound_played = True
 
         if last["is_correct"]:
