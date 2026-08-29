@@ -24,11 +24,18 @@ Streamlit で動作します。
     },
 """
 
+import base64
+import io
+import math
 import random
+import struct
+import time
+import wave
 
 import matplotlib.pyplot as plt
 import pandas as pd
 import streamlit as st
+import streamlit.components.v1 as components
 
 # グラフの日本語（「正解」「不正解」）が文字化けしないよう、
 # パソコンに入っている日本語フォントを順番に探して使う設定。
@@ -45,6 +52,101 @@ plt.rcParams["font.sans-serif"] = [
     "sans-serif",
 ]
 plt.rcParams["axes.unicode_minus"] = False
+
+# ============================================================
+# 制限時間（秒）
+# ============================================================
+TIME_LIMIT_SECONDS = 3 * 60  # 3分
+
+
+def format_mmss(seconds: float) -> str:
+    seconds = max(0, int(seconds))
+    minutes, secs = divmod(seconds, 60)
+    return f"{minutes:02d}:{secs:02d}"
+
+
+# ============================================================
+# 効果音（ding.wav / buzzer.wav）を音声ファイルを使わずPythonで自動生成
+# 追加ライブラリのインストールは不要（標準ライブラリのみで作成）
+# ============================================================
+SAMPLE_RATE = 44100
+
+
+def _wave_value(shape: str, freq: float, t: float) -> float:
+    if freq <= 0:
+        return 0.0
+    phase = (freq * t) % 1.0
+    if shape == "square":
+        return 1.0 if phase < 0.5 else -1.0
+    return math.sin(2 * math.pi * freq * t)  # "sine"
+
+
+def _synthesize(segments, sample_rate: int = SAMPLE_RATE) -> bytes:
+    """segments: [(shape, freq_hz, duration_sec, volume), ...] を順番に鳴らして
+    16bit PCM（モノラル）のバイト列にする。freq=0 は無音（間）として扱う。
+    音の頭とお尻を少しフェードさせ、プツッというノイズが出ないようにしている。
+    """
+    pcm = bytearray()
+    fade = 0.015  # 秒
+    for shape, freq, duration, volume in segments:
+        n = int(sample_rate * duration)
+        fade_n = max(1, int(sample_rate * fade))
+        for i in range(n):
+            t = i / sample_rate
+            envelope = 1.0
+            if i < fade_n:
+                envelope = i / fade_n
+            elif i > n - fade_n:
+                envelope = max(0.0, (n - i) / fade_n)
+            sample = volume * envelope * _wave_value(shape, freq, t)
+            pcm += struct.pack("<h", int(max(-1.0, min(1.0, sample)) * 32767))
+    return bytes(pcm)
+
+
+def _pcm_to_wav_bytes(pcm_bytes: bytes, sample_rate: int = SAMPLE_RATE) -> bytes:
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(sample_rate)
+        wf.writeframes(pcm_bytes)
+    return buf.getvalue()
+
+
+@st.cache_data
+def generate_ding_sound() -> bytes:
+    """正解したときの、明るい2音の電子音（ピンポン）。"""
+    segments = [
+        ("sine", 1046.5, 0.12, 0.5),  # ド（高め）
+        ("sine", 1568.0, 0.22, 0.5),  # ソ（さらに高め）
+    ]
+    return _pcm_to_wav_bytes(_synthesize(segments))
+
+
+@st.cache_data
+def generate_buzzer_sound() -> bytes:
+    """不正解のときの、低いブザー音（ブッブッ、と2回鳴る）。"""
+    segments = [
+        ("square", 150.0, 0.18, 0.35),
+        ("square", 0.0, 0.05, 0.0),  # 一瞬の無音
+        ("square", 150.0, 0.18, 0.35),
+    ]
+    return _pcm_to_wav_bytes(_synthesize(segments))
+
+
+def play_sound_effect(wav_bytes: bytes) -> None:
+    """再生ボタンなどを画面に出さず、こっそり自動再生する。"""
+    b64 = base64.b64encode(wav_bytes).decode()
+    components.html(
+        f"""
+        <audio autoplay="true" style="display:none">
+            <source src="data:audio/wav;base64,{b64}" type="audio/wav">
+        </audio>
+        """,
+        height=0,
+        width=0,
+    )
+
 
 # ============================================================
 # 問題データ（ここに追加していけば50問まで増やせます）
@@ -170,6 +272,8 @@ def init_state():
         "log": [],
         "answered": False,
         "selected_choice": None,
+        "start_time": None,
+        "sound_played": True,
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -183,6 +287,15 @@ def reset_quiz():
     st.session_state.log = []
     st.session_state.answered = False
     st.session_state.selected_choice = None
+    st.session_state.start_time = None
+    st.session_state.sound_played = True
+
+
+def get_remaining_seconds() -> float:
+    if st.session_state.start_time is None:
+        return TIME_LIMIT_SECONDS
+    elapsed = time.time() - st.session_state.start_time
+    return TIME_LIMIT_SECONDS - elapsed
 
 
 # ============================================================
@@ -192,6 +305,7 @@ def render_start():
     st.title(QUIZ_TITLE)
     st.write("中学受験対策の社会科（地理）4択クイズです。ボタンをクリックして答えを選んでください。")
     st.write(f"現在、問題は全部で **{len(QUESTIONS)}問** 登録されています。")
+    st.info(f"⏱ 制限時間は全体で **{TIME_LIMIT_SECONDS // 60}分** です。時間になると自動で結果画面に切り替わります。")
 
     max_q = len(QUESTIONS)
     if max_q > 1:
@@ -206,6 +320,8 @@ def render_start():
         st.session_state.log = []
         st.session_state.answered = False
         st.session_state.selected_choice = None
+        st.session_state.start_time = time.time()
+        st.session_state.sound_played = True
         st.session_state.stage = "quiz"
         st.rerun()
 
@@ -217,6 +333,22 @@ def render_quiz():
     quiz = st.session_state.quiz
     total = len(quiz)
     current = st.session_state.current
+
+    # 制限時間チェック（全問終わっていなくても、時間切れなら結果画面へ）
+    remaining = get_remaining_seconds()
+    if remaining <= 0 or current >= total:
+        st.session_state.stage = "result"
+        st.rerun()
+        return
+
+    # ---- 残り時間の表示（毎秒更新） ----
+    timer_color = "red" if remaining <= 30 else "inherit"
+    st.markdown(
+        f"<div style='text-align:right; font-size:1.3em; font-weight:bold; "
+        f"color:{timer_color};'>⏱ 残り時間 {format_mmss(remaining)}</div>",
+        unsafe_allow_html=True,
+    )
+
     q = quiz[current]
 
     st.progress(current / total)
@@ -229,6 +361,7 @@ def render_quiz():
                 is_correct = choice == q["correct"]
                 st.session_state.selected_choice = choice
                 st.session_state.answered = True
+                st.session_state.sound_played = False
                 st.session_state.log.append(
                     {
                         "問題": q["question"],
@@ -241,6 +374,12 @@ def render_quiz():
                 st.rerun()
     else:
         last = st.session_state.log[-1]
+
+        # 効果音は答えた直後の1回だけ鳴らす（タイマー更新のたびに鳴らさない）
+        if not st.session_state.sound_played:
+            play_sound_effect(generate_ding_sound() if last["is_correct"] else generate_buzzer_sound())
+            st.session_state.sound_played = True
+
         if last["is_correct"]:
             st.success(f"○ あなたの回答「{last['あなたの回答']}」")
         else:
@@ -254,6 +393,12 @@ def render_quiz():
             if st.session_state.current >= total:
                 st.session_state.stage = "result"
             st.rerun()
+            return
+
+    # ここまで来た（＝ボタンが押されなかった）場合は、1秒待ってから
+    # 画面を再描画し、残り時間の表示をリアルタイムに近い形で更新し続ける。
+    time.sleep(1)
+    st.rerun()
 
 
 # ============================================================
