@@ -25,6 +25,7 @@ Streamlit で動作します。
 """
 
 import base64
+import difflib
 import io
 import math
 import random
@@ -197,18 +198,21 @@ QUESTIONS = [
         "correct": "富山県",
         "wrong": ["岐阜県", "三重県", "和歌山県", "新潟県"],
         "explanations": {},
+        "category": "公害",
     },
     {
         "question": "三重県で発生した公害病（工業病）は何ですか。",
         "correct": "四日市ぜんそく",
-        "wrong": ["五日市ぜんそく", "イタイイタイ病", "水俣病", "クサイクサイ病"],
+        "wrong": ["イタイイタイ病", "水俣病", "光化学スモッグ"],
         "explanations": {},
+        "category": "公害",
     },
     {
         "question": "新潟水俣病（水俣病）を発生させた原因は何ですか。",
         "correct": "メチル水銀（有機水銀）",
         "wrong": ["レアメタル", "硫黄酸化物", "カドミウム", "メタル水銀"],
         "explanations": {},
+        "category": "公害",
     },
     {
         "question": "九州地方から太平洋沿いを流れてくる暖流は何ですか。",
@@ -223,12 +227,14 @@ QUESTIONS = [
             "千島海流",
         ],
         "explanations": {},
+        "category": "海流",
     },
     {
         "question": "第二次世界大戦ごろまでは全国で最大の生産額を上げていた工業地帯・工業地域は何ですか。",
         "correct": "阪神工業地帯",
         "wrong": ["京葉工業地域", "北九州工業地帯（北九州工業地域）", "中京工業地帯", "東海工業地域"],
         "explanations": {},
+        "category": "工業",
     },
     {
         "question": "自然の力で電気を作り、環境にやさしい発電方法をまとめて何と言いますか。",
@@ -243,66 +249,118 @@ QUESTIONS = [
             "波力発電",
         ],
         "explanations": {},
+        "category": "エネルギー",
     },
     {
         "question": "金属工業、機械工業、化学工業を合わせた工業を何といいますか。",
         "correct": "重化学工業",
         "wrong": ["重工業", "機械工業", "金属きかい化学工業", "自動車工業", "電子工業"],
         "explanations": {},
+        "category": "工業",
     },
     {
         "question": "伝統工芸品、漆器の「津軽塗（つがるぬり）」があるのは何県ですか。",
         "correct": "青森県",
         "wrong": ["石川県", "福島県", "宮城県", "岩手県", "茨城県"],
         "explanations": {},
+        "category": "伝統工芸品",
     },
     {
         "question": "伝統工芸品、焼き物の「備前焼（びぜんやき）」があるのは何県ですか。",
         "correct": "岡山県",
         "wrong": ["石川県", "佐賀県", "京都府", "岐阜県", "愛知県"],
         "explanations": {},
+        "category": "伝統工芸品",
     },
     {
         "question": "伝統工芸品、織物の「小千谷ちぢみ（おぢやちぢみ）」があるのは何県ですか。",
         "correct": "新潟県",
         "wrong": ["京都府", "石川県", "福岡県", "富山県", "愛知県"],
         "explanations": {},
+        "category": "伝統工芸品",
     },
     {
         "question": "日本の「米ぐら」と呼ばれる、稲作がさかんな地域はどこですか。",
         "correct": "東北・北陸地方",
         "wrong": ["北海道地方", "関東地方", "九州地方", "近畿地方", "中国・四国地方"],
         "explanations": {},
+        "category": "農業",
     },
     {
         "question": "日本は北海道・本州・四国・九州の4つの主な島と、どれくらいの数の島で成り立っていますか。",
         "correct": "約1400",
         "wrong": ["1500", "2000", "250", "500"],
         "explanations": {},
+        "category": "国土",
     },
     {
         "question": "領海は海岸線から何海里以内ですか。",
         "correct": "12海里以内",
         "wrong": ["20海里以内", "10海里以内", "7海里以内", "11海里以内", "15海里以内"],
         "explanations": {},
+        "category": "国土",
     },
     {
         "question": "日本の南のはしは何という島ですか。",
         "correct": "沖ノ鳥島",
         "wrong": ["竹島", "南鳥島", "与那国島", "択捉島", "尖閣諸島"],
         "explanations": {},
+        "category": "国土",
     },
     {
         "question": "ロシア連邦が不法に占拠している島々のまとまりを何と呼びますか。",
         "correct": "北方領土",
         "wrong": ["方北領土", "尖閣諸島", "竹島", "択捉島", "与那国島"],
         "explanations": {},
+        "category": "国土",
     },
     {
         "question": "日本の排他的経済水域は、海岸線から何海里までありますか。",
         "correct": "200海里",
         "wrong": ["12海里", "168海里", "209海里", "321海里", "100海里"],
         "explanations": {},
+        "category": "国土",
+    },
+    {
+        "question": "暖かい土地で、家に給水タンクを設置しているのは何に備えるためですか。",
+        "correct": "水不足に備えるため",
+        "wrong": [
+            "台風に備えるため",
+            "洪水に備えるため",
+            "地震に備えるため",
+            "土砂崩れに備えるため",
+            "食糧不足に備えるため",
+        ],
+        "explanations": {},
+        "category": "気候とくらし",
+    },
+    {
+        "question": "1997年に、公害対策のため定められたのは何ですか。",
+        "correct": "環境影響評価法（環境アセスメント法）",
+        "wrong": ["環境基本法", "公害防止条例", "公害対策基本法", "公害停止法", "環境庁（環境省）"],
+        "explanations": {},
+        "category": "環境保全",
+    },
+    {
+        "question": "自然や貴重な建物を買い取って保存し、環境を保全するための運動を何運動といいますか。",
+        "correct": "ナショナルトラスト運動",
+        "wrong": ["環境保全運動", "ナショナルラスト運動", "環境保護運動", "自然保存運動", "国土保護運動"],
+        "explanations": {},
+        "category": "環境保全",
+    },
+    {
+        "question": "工芸作物の「い草」は、主に何県でとれますか。",
+        "correct": "熊本県",
+        "wrong": ["鹿児島県", "静岡県", "愛知県", "島根県", "青森県"],
+        "explanations": {},
+        "category": "農業",
+    },
+    {
+        "question": "都市向けの野菜や草花を作る農業を何といいますか。",
+        "correct": "近郊農業",
+        "wrong": ["抑制栽培", "促成栽培", "転作", "早場米", "二期作"],
+        "explanations": {},
+        "category": "農業",
     },
 ]
 
@@ -329,6 +387,74 @@ def generate_quiz(num_questions: int):
             }
         )
     return quiz
+
+
+# ============================================================
+# ワンポイントアドバイス（正解・不正解のデータから、次に何を
+# 勉強すればよいかのヒントを作る）
+# ============================================================
+CONFUSION_SIMILARITY_THRESHOLD = 0.6  # これ以上似ていたら「紛らわしい」とみなす
+
+
+def _category_map():
+    return {q["question"]: q.get("category", "その他") for q in QUESTIONS}
+
+
+def generate_advice(log):
+    """回答ログ（st.session_state.log）から、アドバイスの文章リストを作る。"""
+    if not log:
+        return []
+
+    wrong_items = [item for item in log if not item["is_correct"]]
+    if not wrong_items:
+        return ["🎉 今回は全問正解でした！この調子で他の分野にも挑戦してみましょう。"]
+
+    advice = []
+
+    # (1) 分野（category）ごとの正答率を集計して、一番苦手な分野を1つ見つける。
+    #     1問しか出ていない分野は判断材料が少ないので、2問以上出た分野だけを対象にする。
+    cat_map = _category_map()
+    stats = {}
+    for item in log:
+        cat = cat_map.get(item["問題"], "その他")
+        s = stats.setdefault(cat, {"correct": 0, "total": 0})
+        s["total"] += 1
+        if item["is_correct"]:
+            s["correct"] += 1
+
+    weak_candidates = [
+        (cat, s["correct"] / s["total"], s["total"], s["total"] - s["correct"])
+        for cat, s in stats.items()
+        if s["total"] >= 2 and s["correct"] < s["total"]
+    ]
+    if weak_candidates:
+        # 正答率が低い順、同率なら間違えた数が多い順に並べて、一番弱い分野を選ぶ
+        weak_candidates.sort(key=lambda x: (x[1], -x[3]))
+        weak_cat, _rate, weak_total, weak_wrong = weak_candidates[0]
+        advice.append(
+            f"📚「{weak_cat}」の分野は {weak_total}問中{weak_wrong}問を間違えています。"
+            "重点的に復習しましょう。"
+        )
+
+    # (2) 正解と間違えて選んだ答えが「見た目や字面が似ている」場合は、
+    #     覚え間違いをしやすい組み合わせとして注意を促す。
+    seen_pairs = set()
+    for item in wrong_items:
+        correct = item["正解"]
+        selected = item["あなたの回答"]
+        ratio = difflib.SequenceMatcher(None, correct, selected).ratio()
+        if ratio < CONFUSION_SIMILARITY_THRESHOLD:
+            continue
+        pair_key = tuple(sorted([correct, selected]))
+        if pair_key in seen_pairs:
+            continue
+        seen_pairs.add(pair_key)
+        advice.append(f"⚠️「{correct}」と「{selected}」は似ていて間違えやすいので、セットで覚え直しておきましょう。")
+
+    if not advice:
+        advice.append("間違えた問題をもう一度見直して、正しい答えを確認しておきましょう。")
+
+    return advice
 
 
 # ============================================================
@@ -497,6 +623,10 @@ def render_result():
     ax.axis("equal")
     st.pyplot(fig, use_container_width=False)
     plt.close(fig)
+
+    st.subheader("ワンポイントアドバイス")
+    for tip in generate_advice(log):
+        st.info(tip)
 
     st.subheader("解いた問題の一覧")
     df = pd.DataFrame(log)[["問題", "あなたの回答", "正解", "結果"]]
